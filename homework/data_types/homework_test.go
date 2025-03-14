@@ -13,12 +13,11 @@ type Unsigned interface {
 // go test -v homework_test.go
 func ToLittleEndian[T Unsigned](number T) T {
 	var out T
-	n := int(unsafe.Sizeof(out))
-	for i := 0; i < n; i++ {
-		os := 8 * i
-		o := byte(number >> os & 0xFF)
-		ys := 8 * (n - i - 1)
-		out = out | T(o)<<ys
+	size := int(unsafe.Sizeof(out))
+	for i := 0; i < size; i++ {
+		digit := byte(number >> (8 * i) & 0xFF)
+		shift := 8 * (size - i - 1)
+		out = out | T(digit)<<shift
 	}
 	return out
 }
