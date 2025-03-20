@@ -13,14 +13,13 @@ type QueueElement interface {
 
 // go test -v homework_test.go
 type CircularQueue[T QueueElement] struct {
-	values         []T
-	len, cap, head int
+	values    []T
+	len, head int
 }
 
 func NewCircularQueue[T QueueElement](size int) CircularQueue[T] {
 	return CircularQueue[T]{
 		values: make([]T, size),
-		cap:    size,
 	}
 }
 
@@ -28,7 +27,7 @@ func (q *CircularQueue[T]) Push(value T) bool {
 	if q.Full() {
 		return false
 	}
-	tail := (q.head + q.len) % q.cap
+	tail := (q.head + q.len) % cap(q.values)
 	q.values[tail] = value
 	q.len++
 	return true
@@ -38,7 +37,7 @@ func (q *CircularQueue[T]) Pop() bool {
 	if q.Empty() {
 		return false
 	}
-	q.head = (q.head + 1) % q.cap
+	q.head = (q.head + 1) % cap(q.values)
 	q.len--
 	return true
 }
@@ -54,7 +53,7 @@ func (q *CircularQueue[T]) Back() T {
 	if q.Empty() {
 		return T(-1)
 	}
-	tail := (q.head + q.len - 1) % q.cap
+	tail := (q.head + q.len - 1) % cap(q.values)
 	return q.values[tail]
 }
 
@@ -63,7 +62,7 @@ func (q *CircularQueue[T]) Empty() bool {
 }
 
 func (q *CircularQueue[T]) Full() bool {
-	return q.len == q.cap
+	return q.len == cap(q.values)
 }
 
 func TestCircularQueue(t *testing.T) {
