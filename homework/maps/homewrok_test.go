@@ -5,132 +5,128 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/constraints"
 )
 
-type node struct {
-	key         int
-	value       int
-	right, left *node
+type node[K constraints.Ordered, V any] struct {
+	key         K
+	value       V
+	right, left *node[K, V]
 }
 
-// go test -v homework_test.go
-
-type OrderedMap struct {
-	root *node
+type OrderedMap[K constraints.Ordered, V any] struct {
+	root *node[K, V]
 	size int
 }
 
-func NewOrderedMap() OrderedMap {
-	return OrderedMap{}
+func NewOrderedMap[K constraints.Ordered, V any]() OrderedMap[K, V] {
+	return OrderedMap[K, V]{}
 }
 
-func (m *OrderedMap) Insert(key, value int) {
+func (m *OrderedMap[K, V]) Insert(key K, value V) {
 	if m.root == nil {
-		m.root = &node{key: key, value: value}
-		m.size = 1
+		m.root = &node[K, V]{key: key, value: value}
+		m.size++
 	} else {
-		m.size = m.size + insert(m.root, key, value)
+		m.size += insert(m.root, key, value)
 	}
 }
 
-func (m *OrderedMap) Erase(key int) {
-	var ok bool
-	m.root, ok = erase(m.root, key)
-	if ok {
-		m.size--
-	}
+func (m *OrderedMap[K, V]) Erase(key K) {
+	var count int
+	m.root, count = erase(m.root, key)
+	m.size -= count
 }
 
-func (m *OrderedMap) Contains(key int) bool {
+func (m *OrderedMap[K, V]) Contains(key K) bool {
 	return find(m.root, key) != nil
 }
 
-func (m *OrderedMap) Size() int {
+func (m *OrderedMap[K, V]) Size() int {
 	return m.size
 }
 
-func (m *OrderedMap) ForEach(action func(int, int)) {
+func (m *OrderedMap[K, V]) ForEach(action func(K, V)) {
 	each(m.root, action)
 }
 
-func insert(cur *node, key, value int) int {
+// insert returns 1 if the key was inserted, 0 if the key was updated
+func insert[K constraints.Ordered, V any](cur *node[K, V], key K, value V) int {
 	if key == cur.key {
 		cur.value = value
 		return 0
 	}
 	if key < cur.key {
 		if cur.left == nil {
-			cur.left = &node{key: key, value: value}
+			cur.left = &node[K, V]{key: key, value: value}
 			return 1
 		}
 		return insert(cur.left, key, value)
 	} else {
 		if cur.right == nil {
-			cur.right = &node{key: key, value: value}
+			cur.right = &node[K, V]{key: key, value: value}
 			return 1
 		}
 		return insert(cur.right, key, value)
 	}
 }
 
-func erase(cur *node, key int) (*node, bool) {
-	// use ok to indicate if the node was found and deleted
-	var ok bool
+func erase[K constraints.Ordered, V any](cur *node[K, V], key K) (*node[K, V], int) {
+	// use count to track if the node was found and deleted
+	var count int
 	if cur == nil {
-		return nil, false
+		return nil, 0
 	}
 	if key == cur.key {
 		if cur.right == nil && cur.left == nil {
-			return nil, true
+			return nil, 1
 		}
 		if cur.right == nil {
-			return cur.left, true
+			return cur.left, 1
 		}
 		if cur.left == nil {
-			return cur.right, true
+			return cur.right, 1
 		}
-		// find the minimum value in the right subtree to replace the current node
 		mv := findMin(cur.right)
 		cur.key = mv.key
 		cur.value = mv.value
-		cur.right, ok = erase(cur.right, mv.key)
+		cur.right, count = erase(cur.right, mv.key)
 	} else if key < cur.key {
-		cur.left, ok = erase(cur.left, key)
+		cur.left, count = erase(cur.left, key)
 	} else {
-		cur.right, ok = erase(cur.right, key)
+		cur.right, count = erase(cur.right, key)
 	}
-	return cur, ok
+	return cur, count
 }
 
-func each(node *node, action func(int, int)) {
-	if node == nil {
+func each[K constraints.Ordered, V any](n *node[K, V], action func(K, V)) {
+	if n == nil {
 		return
 	}
-	each(node.left, action)
-	action(node.key, node.value)
-	each(node.right, action)
+	each(n.left, action)
+	action(n.key, n.value)
+	each(n.right, action)
 }
 
-func findMin(cur *node) *node {
+func findMin[K constraints.Ordered, V any](cur *node[K, V]) *node[K, V] {
 	if cur.left == nil {
 		return cur
 	}
 	return findMin(cur.left)
 }
 
-func find(cur *node, key int) *node {
+func find[K constraints.Ordered, V any](cur *node[K, V], key K) *node[K, V] {
 	if cur == nil || key == cur.key {
 		return cur
 	}
 	if key < cur.key {
 		return find(cur.left, key)
-	} else {
-		return find(cur.right, key)
 	}
+	return find(cur.right, key)
 }
 
 func TestOrderedMap(t *testing.T) {
-	data := NewOrderedMap()
+	data := NewOrderedMap[int, int]()
 	assert.Zero(t, data.Size())
 
 	data.Insert(10, 10)
@@ -176,33 +172,33 @@ func TestOrderedMap(t *testing.T) {
 
 func TestOrderedMap_HappyPaths(t *testing.T) {
 	t.Run("map is empty", func(t *testing.T) {
-		m := NewOrderedMap()
+		m := NewOrderedMap[int, int]()
 		assert.Zero(t, m.Size())
 	})
 
 	t.Run("add an element", func(t *testing.T) {
-		m := NewOrderedMap()
-		m.Insert(10, 10)
+		m := NewOrderedMap[string, float32]()
+		m.Insert("10", 10.111)
 		assert.Equal(t, 1, m.Size())
 	})
 
 	t.Run("erase last element", func(t *testing.T) {
-		m := NewOrderedMap()
-		m.Insert(10, 10)
+		m := NewOrderedMap[int, string]()
+		m.Insert(10, "10")
 		m.Erase(10)
 		assert.Zero(t, m.Size())
 	})
 
 	t.Run("erase element with 1 child", func(t *testing.T) {
-		m := NewOrderedMap()
-		m.Insert(10, 10)
-		m.Insert(5, 10)
+		m := NewOrderedMap[int, bool]()
+		m.Insert(10, true)
+		m.Insert(5, false)
 		m.Erase(10)
 		assert.Equal(t, 1, m.Size())
 	})
 
 	t.Run("erase element with 2 child", func(t *testing.T) {
-		m := NewOrderedMap()
+		m := NewOrderedMap[int, int]()
 		m.Insert(5, 0)
 		m.Insert(2, 0)
 		m.Insert(7, 0)
