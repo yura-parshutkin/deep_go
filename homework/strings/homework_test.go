@@ -9,29 +9,62 @@ import (
 )
 
 type COWBuffer struct {
-	data []byte
-	refs *int
-	// need to implement
+	data     []byte
+	refs     *int
+	isClosed bool
 }
 
 func NewCOWBuffer(data []byte) COWBuffer {
-	return COWBuffer{} // need to implement
+	return COWBuffer{
+		data: data,
+		refs: new(int),
+	}
 }
 
 func (b *COWBuffer) Clone() COWBuffer {
-	return COWBuffer{} // need to implement
+	if b.isClosed {
+		panic("can not clone COWBuffer")
+	}
+	*b.refs++
+	return COWBuffer{
+		data: b.data,
+		refs: b.refs,
+	}
 }
 
 func (b *COWBuffer) Close() {
-	// need to implement
+	if !b.isClosed {
+		b.isClosed = true
+		*b.refs--
+	}
 }
 
 func (b *COWBuffer) Update(index int, value byte) bool {
-	return false // need to implement
+	if b.isClosed {
+		// if buffer is closed - can not update it
+		panic("can not update COWBuffer")
+	}
+	// check if index is out of range
+	if index < 0 || index >= len(b.data) {
+		return false
+	}
+	// if there are some references to this struct - need to copy data
+	if *b.refs > 0 {
+		// remove this struct from the references
+		*b.refs--
+		// reset data and refs for this struct
+		newData := make([]byte, len(b.data))
+		copy(newData, b.data)
+
+		b.data = newData
+		b.refs = new(int)
+	}
+	b.data[index] = value
+	return true
 }
 
 func (b *COWBuffer) String() string {
-	return "" // need to implement
+	return unsafe.String(unsafe.SliceData(b.data), len(b.data))
 }
 
 func TestCOWBuffer(t *testing.T) {
@@ -60,7 +93,6 @@ func TestCOWBuffer(t *testing.T) {
 
 	assert.NotEqual(t, unsafe.SliceData(buffer.data), unsafe.SliceData(copy1.data))
 	assert.Equal(t, unsafe.SliceData(copy1.data), unsafe.SliceData(copy2.data))
-
 	copy1.Close()
 
 	previous := copy2.data
