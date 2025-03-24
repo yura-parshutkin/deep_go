@@ -72,11 +72,11 @@ func insert[K constraints.Ordered, V any](cur *node[K, V], key K, value V) int {
 }
 
 func erase[K constraints.Ordered, V any](cur *node[K, V], key K) (*node[K, V], int) {
-	// use count to track if the node was found and deleted
-	var count int
 	if cur == nil {
 		return nil, 0
 	}
+	// use count to track if the node was found and deleted
+	var count int
 	if key == cur.key {
 		if cur.right == nil && cur.left == nil {
 			return nil, 1
