@@ -8,8 +8,8 @@ import (
 )
 
 func Map[T any](data []T, action func(T) T) []T {
-	if data == nil {
-		return nil
+	if len(data) == 0 {
+		return data
 	}
 	out := make([]T, 0, len(data))
 	for _, v := range data {
@@ -19,8 +19,8 @@ func Map[T any](data []T, action func(T) T) []T {
 }
 
 func Filter[T any](data []T, action func(T) bool) []T {
-	if data == nil {
-		return nil
+	if len(data) == 0 {
+		return data
 	}
 	out := make([]T, 0)
 	for i := range data {
