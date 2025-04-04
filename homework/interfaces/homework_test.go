@@ -77,13 +77,9 @@ func (c *Container) RegisterSingletonType(name string, constructor interface{}) 
 }
 
 func (c *Container) alreadyRegistered(name string) bool {
-	if _, ok := c.funcConstructs[name]; ok {
-		return true
-	}
-	if _, ok := c.singletons[name]; ok {
-		return true
-	}
-	return false
+	_, funcOk := c.funcConstructs[name]
+	_, singleOk := c.singletons[name]
+	return funcOk || singleOk
 }
 
 func (c *Container) Resolve(name string) (interface{}, error) {
