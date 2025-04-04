@@ -2,12 +2,11 @@ package main
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-// go test -v homework_test.go
 
 type ServiceWithNestedDependencies struct {
 	FooDependency *FooDependency
@@ -22,21 +21,20 @@ type BarDependency struct {
 }
 
 type UserService struct {
-	// not need to implement
 	NotEmptyStruct bool
 }
+
 type MessageService struct {
-	// not need to implement
 	NotEmptyStruct bool
 }
 
 type Container struct {
+	mu             sync.RWMutex
 	funcConstructs map[string]func(c *Container) any
 	singletons     map[string]any
 }
 
 func NewContainer() *Container {
-	// need to implement
 	return &Container{
 		funcConstructs: make(map[string]func(c *Container) any),
 		singletons:     make(map[string]any),
@@ -44,6 +42,9 @@ func NewContainer() *Container {
 }
 
 func (c *Container) RegisterType(name string, constructor interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.alreadyRegistered(name) {
 		// it's better to return error here, but let's save compatibility with the original code
 		panic("service already registered")
@@ -62,6 +63,9 @@ func (c *Container) RegisterType(name string, constructor interface{}) {
 }
 
 func (c *Container) RegisterSingletonType(name string, constructor interface{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.alreadyRegistered(name) {
 		// it's better to return error here, but let's save compatibility with the original code
 		panic("service already registered")
@@ -82,13 +86,14 @@ func (c *Container) alreadyRegistered(name string) bool {
 	return funcOk || singleOk
 }
 
-func (c *Container) Resolve(name string) (interface{}, error) {
-	funcConstruct, ok := c.funcConstructs[name]
-	if ok {
+func (c *Container) Resolve(name string) (any, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if funcConstruct, ok := c.funcConstructs[name]; ok {
 		return funcConstruct(c), nil
 	}
-	singleton, ok := c.singletons[name]
-	if ok {
+	if singleton, ok := c.singletons[name]; ok {
 		return singleton, nil
 	}
 	return nil, errors.New("service is not registered")
@@ -175,4 +180,63 @@ func TestDIContainerSingleton(t *testing.T) {
 	u1 := userService1.(*UserService)
 	u2 := userService2.(*UserService)
 	assert.True(t, u1 == u2)
+}
+
+func TestDIContainerConcurrent(t *testing.T) {
+	container := NewContainer()
+	container.RegisterType("UserService", func() interface{} {
+		return &UserService{}
+	})
+	container.RegisterType("MessageService", func() interface{} {
+		return &MessageService{}
+	})
+
+	var wg sync.WaitGroup
+	const numGoroutines = 100
+
+	// Test concurrent resolution of UserService
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			userService, err := container.Resolve("UserService")
+			assert.NoError(t, err)
+			assert.NotNil(t, userService)
+		}()
+	}
+	wg.Wait()
+
+	// Test concurrent resolution of MessageService
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			messageService, err := container.Resolve("MessageService")
+			assert.NoError(t, err)
+			assert.NotNil(t, messageService)
+		}()
+	}
+	wg.Wait()
+}
+
+func TestDIContainerConcurrentSingleton(t *testing.T) {
+	container := NewContainer()
+	container.RegisterSingletonType("UserService", func() interface{} {
+		return &UserService{}
+	})
+
+	var wg sync.WaitGroup
+	const numGoroutines = 100
+
+	// Test concurrent resolution of singleton UserService
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			userService, err := container.Resolve("UserService")
+			assert.NoError(t, err)
+			assert.NotNil(t, userService)
+		}()
+	}
+	wg.Wait()
 }
