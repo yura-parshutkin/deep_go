@@ -57,6 +57,7 @@ func (c *Container) RegisterType(name string, constructor interface{}) {
 		}
 	case func(c *Container) any:
 		c.funcConstructs[name] = constr
+		// we can add other constructors here
 	default:
 		panic("unexpected constructor type")
 	}
