@@ -93,6 +93,7 @@ func (s *Scheduler) ChangeTaskPriority(taskID int, newPriority int) {
 
 func (s *Scheduler) GetTask() Task {
 	if s.tasks.Empty() {
+		// looks like it might be better to return nil here, but i decided to save contract
 		return Task{}
 	}
 	return heap.Pop(s.tasks).(Task)
