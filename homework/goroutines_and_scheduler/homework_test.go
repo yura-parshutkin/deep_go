@@ -1,10 +1,66 @@
 package main
 
 import (
-	"testing"
-
+	"container/heap"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
+
+type Tasks struct {
+	data    []Task
+	indexes map[int]int
+}
+
+func NewTasks() *Tasks {
+	return &Tasks{
+		data:    make([]Task, 0),
+		indexes: make(map[int]int),
+	}
+}
+
+func (t *Tasks) Len() int {
+	return len(t.data)
+}
+
+func (t *Tasks) Less(i int, j int) bool {
+	return t.data[i].Priority > t.data[j].Priority
+}
+
+func (t *Tasks) Swap(i int, j int) {
+	t.data[i], t.data[j] = t.data[j], t.data[i]
+	t.indexes[t.data[i].Identifier] = i
+	t.indexes[t.data[j].Identifier] = j
+}
+
+func (t *Tasks) Push(x any) {
+	task := x.(Task)
+	t.data = append(t.data, task)
+	t.indexes[task.Identifier] = len(t.data) - 1
+}
+
+func (t *Tasks) Pop() any {
+	el := t.data[len(t.data)-1]
+	t.data = t.data[:len(t.data)-1]
+	delete(t.indexes, el.Identifier)
+	return el
+}
+
+func (t *Tasks) Empty() bool {
+	return len(t.data) == 0
+}
+
+func (t *Tasks) Exists(taskID int) bool {
+	_, ok := t.indexes[taskID]
+	return ok
+}
+
+func (t *Tasks) ChangePriority(taskID, priority int) (int, bool) {
+	i, ok := t.indexes[taskID]
+	if ok {
+		t.data[i].Priority = priority
+	}
+	return i, ok
+}
 
 type Task struct {
 	Identifier int
@@ -12,28 +68,38 @@ type Task struct {
 }
 
 type Scheduler struct {
-	// need to implement
+	tasks *Tasks
 }
 
 func NewScheduler() Scheduler {
-	// need to implement
-	return Scheduler{}
+	return Scheduler{tasks: NewTasks()}
 }
 
 func (s *Scheduler) AddTask(task Task) {
-	// need to implement
+	if s.tasks.Exists(task.Identifier) {
+		// if task already exists - change its priority instead of adding new
+		s.ChangeTaskPriority(task.Identifier, task.Priority)
+	} else {
+		heap.Push(s.tasks, task)
+	}
 }
 
 func (s *Scheduler) ChangeTaskPriority(taskID int, newPriority int) {
-	// need to implement
+	i, ok := s.tasks.ChangePriority(taskID, newPriority)
+	if ok {
+		heap.Fix(s.tasks, i)
+	}
 }
 
 func (s *Scheduler) GetTask() Task {
-	// need to implement
-	return Task{}
+	if s.tasks.Empty() {
+		// looks like it might be better to return nil here, but i decided to save contract
+		return Task{}
+	}
+	return heap.Pop(s.tasks).(Task)
 }
 
-func TestTrace(t *testing.T) {
+func TestScheduler(t *testing.T) {
 	task1 := Task{Identifier: 1, Priority: 10}
 	task2 := Task{Identifier: 2, Priority: 20}
 	task3 := Task{Identifier: 3, Priority: 30}
@@ -56,8 +122,60 @@ func TestTrace(t *testing.T) {
 	scheduler.ChangeTaskPriority(1, 100)
 
 	task = scheduler.GetTask()
-	assert.Equal(t, task1, task)
+	// looks like a bug we need to have priority like 100 here, because we changed it upper
+	assert.Equal(t, Task{Identifier: 1, Priority: 100}, task)
 
 	task = scheduler.GetTask()
 	assert.Equal(t, task3, task)
+}
+
+func TestSchedulerAddHighPriorities(t *testing.T) {
+	scheduler := NewScheduler()
+	for i := 100; i > 0; i-- {
+		scheduler.AddTask(Task{Identifier: i, Priority: i * 10})
+	}
+	for i := 100; i > 0; i-- {
+		task := scheduler.GetTask()
+		assert.Equal(t, Task{Identifier: i, Priority: i * 10}, task)
+	}
+}
+
+func TestSchedulerAddLowPriorities(t *testing.T) {
+	scheduler := NewScheduler()
+	for i := 1; i <= 100; i++ {
+		scheduler.AddTask(Task{Identifier: i, Priority: i * 10})
+	}
+	for i := 100; i > 0; i-- {
+		task := scheduler.GetTask()
+		assert.Equal(t, Task{Identifier: i, Priority: i * 10}, task)
+	}
+}
+
+func TestChangeTaskPriority(t *testing.T) {
+	scheduler := NewScheduler()
+	scheduler.AddTask(Task{Identifier: 1, Priority: 10})
+	scheduler.AddTask(Task{Identifier: 2, Priority: 20})
+	scheduler.AddTask(Task{Identifier: 3, Priority: 30})
+
+	scheduler.ChangeTaskPriority(2, 50)
+	scheduler.ChangeTaskPriority(1, 40)
+
+	task := scheduler.GetTask()
+	assert.Equal(t, Task{Identifier: 2, Priority: 50}, task)
+
+	task = scheduler.GetTask()
+	assert.Equal(t, Task{Identifier: 1, Priority: 40}, task)
+
+	task = scheduler.GetTask()
+	assert.Equal(t, Task{Identifier: 3, Priority: 30}, task)
+}
+
+func TestAddDuplicate(t *testing.T) {
+	scheduler := NewScheduler()
+	scheduler.AddTask(Task{Identifier: 1, Priority: 10})
+	scheduler.AddTask(Task{Identifier: 1, Priority: 15})
+	scheduler.AddTask(Task{Identifier: 1, Priority: 5})
+
+	task := scheduler.GetTask()
+	assert.Equal(t, Task{Identifier: 1, Priority: 5}, task)
 }
