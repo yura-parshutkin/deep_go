@@ -54,6 +54,7 @@ func NewWorkerPool(workersNumber int) *WorkerPool {
 func (wp *WorkerPool) AddTask(task func()) error {
 	select {
 	case <-wp.close:
+		// Pool is closed, cannot accept new tasks
 		return ErrPoolClosed
 	default:
 	}
@@ -62,11 +63,12 @@ func (wp *WorkerPool) AddTask(task func()) error {
 	case wp.buff <- task:
 		return nil
 	default:
+		// Pool is full, cannot accept new tasks
 		return ErrPoolFull
 	}
 }
 
-// Shutdown all workers and workerGroup for all
+// Shutdown all workers and wait for all
 // tasks in the pool to complete
 func (wp *WorkerPool) Shutdown() {
 	// Use select to check if close channel is already closed
@@ -109,7 +111,7 @@ func TestWorkerPool(t *testing.T) {
 	assert.Equal(t, int32(6), counter.Load())
 }
 
-func TestWorkerPoolFullCapacity(t *testing.T) {
+func TestWorkerPoolAddTaskFullPool(t *testing.T) {
 	pool := NewWorkerPool(1)
 	_ = pool.AddTask(func() {
 		time.Sleep(time.Second * 1)
