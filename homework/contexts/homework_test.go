@@ -13,9 +13,10 @@ import (
 
 type Group struct {
 	wg     *sync.WaitGroup
-	err    chan error
+	err    error
 	ctx    context.Context
 	cancel context.CancelFunc
+	once   *sync.Once
 }
 
 func NewErrGroup(parentCtx context.Context) (*Group, context.Context) {
@@ -24,37 +25,26 @@ func NewErrGroup(parentCtx context.Context) (*Group, context.Context) {
 		wg:     &sync.WaitGroup{},
 		ctx:    ctx,
 		cancel: cancel,
-		err:    make(chan error, 1),
+		once:   &sync.Once{},
 	}, ctx
 }
 
 func (g *Group) Go(action func() error) {
-	if action == nil {
-		panic("nil action")
-	}
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()
 		if err := action(); err != nil {
-			select {
-			case g.err <- err:
+			g.once.Do(func() {
+				g.err = err
 				g.cancel()
-			case <-g.ctx.Done():
-			}
+			})
 		}
 	}()
 }
 
 func (g *Group) Wait() error {
 	g.wg.Wait()
-	close(g.err)
-
-	select {
-	case err := <-g.err:
-		return err
-	default:
-		return nil
-	}
+	return g.err
 }
 
 func TestErrGroupWithoutError(t *testing.T) {
