@@ -25,7 +25,7 @@ type WorkerPool struct {
 	workersNumber int
 	buff          chan func()
 	// Use sync.WaitGroup to wait for all tasks to complete
-	workerGroup *sync.WaitGroup
+	taskGroup *sync.WaitGroup
 	// Use a channel to signal when the pool is closed
 	close chan struct{}
 }
@@ -34,16 +34,15 @@ func NewWorkerPool(workersNumber int) *WorkerPool {
 	wp := &WorkerPool{
 		workersNumber: workersNumber,
 		buff:          make(chan func(), workersNumber*bufferSizeMultiply),
-		workerGroup:   &sync.WaitGroup{},
+		taskGroup:     &sync.WaitGroup{},
 		close:         make(chan struct{}),
 	}
-	wp.workerGroup.Add(workersNumber)
 	for i := 0; i < wp.workersNumber; i++ {
 		go func() {
-			defer wp.workerGroup.Done()
 			for task := range wp.buff {
 				// We can catch the potential panic here, but I don't implement it for simplicity
 				task()
+				wp.taskGroup.Done()
 			}
 		}()
 	}
@@ -61,6 +60,7 @@ func (wp *WorkerPool) AddTask(task func()) error {
 
 	select {
 	case wp.buff <- task:
+		wp.taskGroup.Add(1)
 		return nil
 	default:
 		// Pool is full, cannot accept new tasks
@@ -80,9 +80,11 @@ func (wp *WorkerPool) Shutdown() {
 		// Signal that the pool is closed to prevent new tasks
 		close(wp.close)
 	}
-	// Now close the buffer and wait for workers to complete
+
+	// Wait for all tasks to complete
+	wp.taskGroup.Wait()
+	// Close buffer channel
 	close(wp.buff)
-	wp.workerGroup.Wait()
 }
 
 func TestWorkerPool(t *testing.T) {
